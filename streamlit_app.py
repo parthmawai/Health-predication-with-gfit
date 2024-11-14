@@ -12,6 +12,10 @@ import joblib
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Google Fit Authentication and Data Retrieval Functions
 SCOPES = ['https://www.googleapis.com/auth/fitness.activity.read']
@@ -22,14 +26,28 @@ def authenticate_google_fit():
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
-    
+
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json', SCOPES)  # Path to your client secret JSON file
+            # Use environment variables for Google OAuth client ID and secret
+            client_id = os.getenv("GOOGLE_CLIENT_ID")
+            client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+            flow = InstalledAppFlow.from_client_config(
+                {
+                    "installed": {
+                        "client_id": client_id,
+                        "client_secret": client_secret,
+                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                        "token_uri": "https://oauth2.googleapis.com/token"
+                    }
+                },
+                SCOPES
+            )
             creds = flow.run_local_server(port=0)
+        
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
     
