@@ -13,6 +13,13 @@ chol = st.number_input("Cholesterol Level (mg/dl)", min_value=100, max_value=400
 thalch = st.number_input("Maximum Heart Rate Achieved", min_value=60, max_value=220, step=1)
 oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=10.0, step=0.1)
 
+# Load model with caching
+@st.cache_data
+def get_model():
+    return load_model()
+
+model = get_model()
+
 # Predict button
 if st.button('Predict Heart Disease'):
     # Combine inputs into a DataFrame (or a 2D list) to pass to the model
@@ -20,7 +27,7 @@ if st.button('Predict Heart Disease'):
                              columns=['age', 'trestbps', 'chol', 'thalch', 'oldpeak'])
     
     # Run prediction
-    prediction = predict_heart_disease(user_data)
+    prediction = predict_heart_disease(model, user_data)
     
     # Display result
     st.write(f'Prediction: {prediction}')
