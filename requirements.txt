@@ -1,5 +1,8 @@
+google_api_python_client==2.153.0
+google_auth_oauthlib==1.2.1
 joblib==1.4.2
 matplotlib==3.9.2
 pandas==2.2.3
+protobuf==5.28.3
 scikit_learn==1.5.2
 streamlit==1.40.1
