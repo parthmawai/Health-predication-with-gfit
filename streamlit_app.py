@@ -1,30 +1,26 @@
 import streamlit as st
 import pandas as pd
-import matplotlib.pyplot as plt
+from main import load_model, predict_heart_disease
 
-# Load the heart rate data from CSV
-@st.cache  # Cache data for performance
-def load_data():
-    data = pd.read_csv('heart_rate_data.csv')
-    data['date'] = pd.to_datetime(data['date'])  # Ensure 'date' is datetime type
-    return data
+# Title and description
+st.title("Heart Disease Prediction App")
+st.write("Enter the following details to predict the likelihood of heart disease:")
 
-# App title and description
-st.title("Heart Rate Analysis and Prediction")
-st.write("This app displays heart rate data and provides insights based on your ML model.")
+# Input fields for user features
+age = st.number_input("Age", min_value=1, max_value=120, step=1)
+trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=80, max_value=200, step=1)
+chol = st.number_input("Cholesterol Level (mg/dl)", min_value=100, max_value=400, step=1)
+thalch = st.number_input("Maximum Heart Rate Achieved", min_value=60, max_value=220, step=1)
+oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=10.0, step=0.1)
 
-# Load data
-data = load_data()
-
-# Display raw data
-st.subheader("Raw Heart Rate Data")
-st.write(data)
-
-# Plot the heart rate over time
-st.subheader("Heart Rate Over Time")
-plt.figure(figsize=(10, 5))
-plt.plot(data['date'], data['heart_rate'], color='blue')
-plt.xlabel("Date")
-plt.ylabel("Heart Rate (bpm)")
-plt.title("Daily Heart Rate")
-st.pyplot(plt)
+# Predict button
+if st.button('Predict Heart Disease'):
+    # Combine inputs into a DataFrame (or a 2D list) to pass to the model
+    user_data = pd.DataFrame([[age, trestbps, chol, thalch, oldpeak]], 
+                             columns=['age', 'trestbps', 'chol', 'thalch', 'oldpeak'])
+    
+    # Run prediction
+    prediction = predict_heart_disease(user_data)
+    
+    # Display result
+    st.write(f'Prediction: {prediction}')
