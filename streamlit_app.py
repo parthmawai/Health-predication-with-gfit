@@ -70,6 +70,41 @@ def authenticate_google_fit():
 
 def get_heart_rate_data(service):
     """Retrieve heart rate data from Google Fit."""
+    # Calculate the dataset time range
+    end_time = int(time.time() * 1000)  # Current time in milliseconds
+    start_time = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)  # Last 30 days
+
+    dataset_id = f"{start_time}-{end_time}"
+    
+    try:
+        print(f"Requesting data from {start_time} to {end_time}")
+        
+        dataset = service.users().dataSources().datasets().get(
+            userId='me',
+            dataSourceId='derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm',
+            datasetId=dataset_id
+        ).execute()
+        
+        print("Raw API Response:")
+        print(json.dumps(dataset, indent=4))  # Debug raw response
+        
+        heart_rate_data = []
+        if 'point' in dataset:
+            for point in dataset['point']:
+                for value in point['value']:
+                    heart_rate_data.append({
+                        'timestamp': point['endTimeNanos'],
+                        'heart_rate': value['fpVal']
+                    })
+        else:
+            print("No data points found in the response.")
+        
+        return heart_rate_data
+    except Exception as e:
+        print(f"Error retrieving data: {e}")
+        return []
+
+    """Retrieve heart rate data from Google Fit."""
     end_time = int(time.time() * 1000)  # Current time in milliseconds
     start_time = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)  # Last 30 days
     
