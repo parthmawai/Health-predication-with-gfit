@@ -18,20 +18,28 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Google Fit Authentication and Data Retrieval Functions
-SCOPES = ['https://www.googleapis.com/auth/fitness.activity.read https://www.googleapis.com/auth/fitness.sleep.read https://www.googleapis.com/auth/fitness.heart_rate.read']
+
+SCOPES = [
+    'https://www.googleapis.com/auth/fitness.activity.read',
+    'https://www.googleapis.com/auth/fitness.sleep.read',
+    'https://www.googleapis.com/auth/fitness.heart_rate.read',
+]
 
 def authenticate_google_fit():
-    """Authenticate and return the service object."""
+    """Authenticate and return the Google Fit API service object."""
     creds = None
+    
+    # Load saved credentials if available
     if os.path.exists('token.pickle'):
         with open('token.pickle', 'rb') as token:
             creds = pickle.load(token)
 
+    # Refresh or initiate new authentication if needed
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            # Use environment variables for Google OAuth client ID and secret
+            # Load client credentials from environment variables
             client_id = os.getenv("GOOGLE_CLIENT_ID")
             client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
@@ -46,11 +54,17 @@ def authenticate_google_fit():
                 },
                 SCOPES
             )
-            creds = flow.run_console()
-        
+            
+            # Manual URL generation for environments without a GUI browser
+            auth_url, _ = flow.authorization_url(prompt='consent')
+            print("Please visit this URL to authorize the application:", auth_url)
+            code = input("Enter the authorization code: ")
+            creds = flow.fetch_token(code=code)
+
+        # Save the credentials for future use
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
-    
+
     service = build('fitness', 'v1', credentials=creds)
     return service
 
