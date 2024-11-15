@@ -46,7 +46,7 @@ def authenticate_google_fit():
                 },
                 SCOPES
             )
-            creds = flow.run_local_server(port=0)
+            creds = flow.run_console()
         
         with open('token.pickle', 'wb') as token:
             pickle.dump(creds, token)
