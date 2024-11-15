@@ -202,11 +202,12 @@ st.header("Heart Disease Prediction")
 st.write("Enter the following details to predict the likelihood of heart disease:")
 
 # Input fields for user features
-age = st.number_input("Age", min_value=1, max_value=120, step=1)
-trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=80, max_value=200, step=1)
-chol = st.number_input("Cholesterol Level (mg/dl)", min_value=100, max_value=400, step=1)
-thalch = st.number_input("Maximum Heart Rate Achieved", min_value=60, max_value=220, step=1)
-oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=10.0, step=0.1)
+age = st.number_input("Age", min_value=1, max_value=120, step=1, key="age_input")
+trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=80, max_value=200, step=1, key="bp_input")
+chol = st.number_input("Cholesterol Level (mg/dl)", min_value=100, max_value=400, step=1, key="chol_input")
+thalch = st.number_input("Maximum Heart Rate Achieved", min_value=60, max_value=220, step=1, key="thalch_input")
+oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=10.0, step=0.1, key="oldpeak_input")
+
 
 # Predict button for heart disease
 if st.button('Predict Heart Disease'):
