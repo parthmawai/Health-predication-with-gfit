@@ -16,6 +16,8 @@ from dotenv import load_dotenv
 import json
 from streamlit_authenticator import Authenticate
 import dotenv
+from google.oauth2 import service_account
+
 
 # Load environment variables from .env file
 load_dotenv()
