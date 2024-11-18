@@ -102,7 +102,7 @@ def authenticate_google_fit():
             redirect_uri = "http://localhost:8502"
 
             flow = InstalledAppFlow.from_client_secrets_file(
-                'credentials.json',
+                '.env',  # File containing client credentials
                 SCOPES
             )
             creds = flow.run_local_server(port=0)
