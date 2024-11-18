@@ -17,8 +17,48 @@ import json
 from streamlit_authenticator import Authenticate
 import dotenv
 
-# Load environment variables
+# Load environment variables from .env file
 load_dotenv()
+
+# Fetch credentials from environment variables
+client_id = os.getenv("GOOGLE_CLIENT_ID")
+client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+project_id = os.getenv("GOOGLE_PROJECT_ID")
+private_key_id = os.getenv("GOOGLE_PRIVATE_KEY_ID")
+private_key = os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n")  # Ensure the private key is correctly formatted
+client_email = os.getenv("GOOGLE_CLIENT_EMAIL")
+client_x509_cert_url = os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
+auth_uri = os.getenv("GOOGLE_AUTH_URI")
+token_uri = os.getenv("GOOGLE_TOKEN_URI")
+auth_provider_x509_cert_url = os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL")
+
+# Ensure the required environment variables are present
+if not all([client_id, client_secret, project_id, private_key, client_email]):
+    st.error("Error: Missing some environment variables for Google API credentials.")
+else:
+    # Construct the credentials using the environment variables
+    credentials_info = {
+        "type": "service_account",
+        "project_id": project_id,
+        "private_key_id": private_key_id,
+        "private_key": private_key,
+        "client_email": client_email,
+        "client_id": client_id,
+        "auth_uri": auth_uri,
+        "token_uri": token_uri,
+        "auth_provider_x509_cert_url": auth_provider_x509_cert_url,
+        "client_x509_cert_url": client_x509_cert_url,
+    }
+
+    credentials = service_account.Credentials.from_service_account_info(credentials_info)
+
+    # Initialize Google Fit API client
+    try:
+        service = build('fitness', 'v1', credentials=credentials)
+        st.success("Successfully authenticated with Google Fit API!")
+    except Exception as e:
+        st.error(f"Error while authenticating: {e}")
+
 
 # Google Fit Authentication and Data Retrieval Functions
 
