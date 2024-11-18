@@ -14,6 +14,8 @@ from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from dotenv import load_dotenv
 import json
+from streamlit_authenticator import Authenticate
+
 
 # Load environment variables
 load_dotenv()
@@ -43,24 +45,13 @@ def authenticate_google_fit():
             # Load client credentials from environment variables
             client_id = os.getenv("GOOGLE_CLIENT_ID")
             client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+            redirect_uri = "http://localhost:8502"
 
-            flow = InstalledAppFlow.from_client_config(
-                {
-                    "installed": {
-                        "client_id": client_id,
-                        "client_secret": client_secret,
-                        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-                        "token_uri": "https://oauth2.googleapis.com/token"
-                    }
-                },
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json',
                 SCOPES
             )
-            
-            # Manual URL generation for environments without a GUI browser
-            auth_url, _ = flow.authorization_url(prompt='consent')
-            print("Please visit this URL to authorize the application:", auth_url)
-            code = input("Enter the authorization code: ")
-            creds = flow.fetch_token(code=code)
+            creds = flow.run_local_server(port=0)
 
         # Save the credentials for future use
         with open('token.pickle', 'wb') as token:
@@ -68,6 +59,7 @@ def authenticate_google_fit():
 
     service = build('fitness', 'v1', credentials=creds)
     return service
+
 
 def get_heart_rate_data(service):
     """Retrieve heart rate data from Google Fit."""
@@ -78,16 +70,11 @@ def get_heart_rate_data(service):
     dataset_id = f"{start_time}-{end_time}"
     
     try:
-        print(f"Requesting data from {start_time} to {end_time}")
-        
         dataset = service.users().dataSources().datasets().get(
             userId='me',
             dataSourceId='derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm',
             datasetId=dataset_id
         ).execute()
-        
-        print("Raw API Response:")
-        print(json.dumps(dataset, indent=4))  # Debug raw response
         
         heart_rate_data = []
         if 'point' in dataset:
@@ -95,7 +82,7 @@ def get_heart_rate_data(service):
                 for value in point['value']:
                     heart_rate_data.append({
                         'timestamp': point['endTimeNanos'],
-                        'heart_rate': value['fpVal']
+                        'heart_rate': value['fpVal']  # Heart rate in bpm
                     })
         else:
             print("No data points found in the response.")
@@ -105,35 +92,15 @@ def get_heart_rate_data(service):
         print(f"Error retrieving data: {e}")
         return []
 
-    """Retrieve heart rate data from Google Fit."""
-    end_time = int(time.time() * 1000)  # Current time in milliseconds
-    start_time = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)  # Last 30 days
-    
-    dataset_id = f"{start_time}-{end_time}"
-    
-    dataset = service.users().dataSources().datasets().get(
-        userId='me',
-        dataSourceId='derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm',
-        datasetId=dataset_id
-    ).execute()
-    
-    heart_rate_data = []
-    for point in dataset['point']:
-        for value in point['value']:
-            heart_rate_data.append({
-                'timestamp': point['endTimeNanos'],
-                'heart_rate': value['fpVal']  # Heart rate in bpm
-            })
-    
-    return heart_rate_data
 
 # Function to load Google Fit data
-@st.cache_data  # Cache data for efficiency
+@st.cache_data
 def load_google_fit_data():
     """Load heart rate data from Google Fit."""
     service = authenticate_google_fit()  # Authenticate and get service
     heart_rate_data = get_heart_rate_data(service)  # Get heart rate data
     return heart_rate_data
+
 
 # Function to load the trained model
 def load_model():
@@ -141,6 +108,7 @@ def load_model():
     with open('heart_disease_model.pkl', 'rb') as f:
         model = pickle.load(f)
     return model
+
 
 # Train the model function
 def train_model(df):
@@ -157,34 +125,48 @@ def train_model(df):
         pickle.dump(model, f)
     print("Model trained and saved.")
 
+
 # Load the heart disease dataset
-df = pd.read_csv('heart_disease_uci.csv')  # Ensure you have this CSV in the correct path
+@st.cache_data
+def load_and_preprocess_data():
+    """Load and preprocess the heart disease dataset."""
+    # Load the heart disease dataset
+    df = pd.read_csv('heart_disease_uci.csv')  # Ensure you have this CSV in the correct path
 
-# Preprocess the data
-df['fbs'] = df['fbs'].astype('category')
-df['exang'] = df['exang'].astype('category')
-df['slope'] = df['slope'].astype('category')
-df['ca'] = df['ca'].astype('category')
-df['thal'] = df['thal'].astype('category')
+    # Display columns for debugging
+    st.write("Columns in the dataset:", df.columns)
 
-# Fill missing values
-df['trestbps'] = df['trestbps'].fillna(df['trestbps'].mean())
-df['thalch'] = df['thalch'].fillna(df['thalch'].mean())
-df['chol'] = df['chol'].fillna(df['chol'].mean())
-df['fbs'] = df['fbs'].fillna(df['fbs'].mode()[0])
-df['exang'] = df['exang'].fillna(df['exang'].mode()[0])
-df['oldpeak'] = df['oldpeak'].fillna(df['oldpeak'].mean())
-df['slope'] = df['slope'].fillna(df['slope'].mode()[0])
-df['ca'] = df['ca'].fillna(df['ca'].mode()[0])
-df['thal'] = df['thal'].fillna(df['thal'].mode()[0])
+    # Preprocessing steps
+    df['fbs'] = df['fbs'].astype('category')
+    df['exang'] = df['exang'].astype('category')
+    df['slope'] = df['slope'].astype('category')
+    df['ca'] = df['ca'].astype('category')
+    df['thal'] = df['thal'].astype('category')
 
-# Standardize numeric columns
-numeric_features = ['age', 'trestbps', 'chol', 'thalch', 'oldpeak']
-scaler = StandardScaler()
-df[numeric_features] = scaler.fit_transform(df[numeric_features])
+    # Fill missing values
+    df['trestbps'] = df['trestbps'].fillna(df['trestbps'].mean())
+    df['thalch'] = df['thalch'].fillna(df['thalch'].mean())
+    df['chol'] = df['chol'].fillna(df['chol'].mean())
+    df['fbs'] = df['fbs'].fillna(df['fbs'].mode()[0])
+    df['exang'] = df['exang'].fillna(df['exang'].mode()[0])
+    df['oldpeak'] = df['oldpeak'].fillna(df['oldpeak'].mean())
+    df['slope'] = df['slope'].fillna(df['slope'].mode()[0])
+    df['ca'] = df['ca'].fillna(df['ca'].mode()[0])
+    df['thal'] = df['thal'].fillna(df['thal'].mode()[0])
+
+    # Standardize numeric columns
+    numeric_features = ['age', 'trestbps', 'chol', 'thalch', 'oldpeak']
+    scaler = StandardScaler()
+    df[numeric_features] = scaler.fit_transform(df[numeric_features])
+
+    st.write("Preprocessing completed successfully!")
+
+    return df
+
 
 # Train the model if it has not been trained yet
 if not os.path.exists('heart_disease_model.pkl'):
+    df = load_and_preprocess_data()
     train_model(df)
 
 # Load model into session state
