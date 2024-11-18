@@ -15,7 +15,7 @@ from google.auth.transport.requests import Request
 from dotenv import load_dotenv
 import json
 from streamlit_authenticator import Authenticate
-
+import dotenv
 
 # Load environment variables
 load_dotenv()
