@@ -27,7 +27,12 @@ client_id = os.getenv("GOOGLE_CLIENT_ID")
 client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 project_id = os.getenv("GOOGLE_PROJECT_ID")
 private_key_id = os.getenv("GOOGLE_PRIVATE_KEY_ID")
-private_key = os.getenv("GOOGLE_PRIVATE_KEY").replace("\\n", "\n")  # Ensure the private key is correctly formatted
+
+private_key = os.getenv("GOOGLE_PRIVATE_KEY")
+if private_key is None:
+    print("Error: GOOGLE_PRIVATE_KEY not found.")
+else:
+    private_key = private_key.replace("\\n", "\n")
 client_email = os.getenv("GOOGLE_CLIENT_EMAIL")
 client_x509_cert_url = os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
 auth_uri = os.getenv("GOOGLE_AUTH_URI")
@@ -52,8 +57,15 @@ else:
         "client_x509_cert_url": client_x509_cert_url,
     }
 
-    credentials = service_account.Credentials.from_service_account_info(credentials_info)
-
+    
+    credentials = service_account.Credentials.from_service_account_info(
+        {
+            "type": "service_account",
+            "private_key": private_key,
+            "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+            "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
+        }
+    )
     # Initialize Google Fit API client
     try:
         service = build('fitness', 'v1', credentials=credentials)
