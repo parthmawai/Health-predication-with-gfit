@@ -1,278 +1,79 @@
-import os
-import pickle
-import time
-import pandas as pd
-import matplotlib.pyplot as plt
 import streamlit as st
-from datetime import datetime, timedelta
-from sklearn.preprocessing import StandardScaler
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+import pandas as pd
 import joblib
-from google_auth_oauthlib.flow import InstalledAppFlow
-from googleapiclient.discovery import build
-from google.auth.transport.requests import Request
-from dotenv import load_dotenv
-import json
-from streamlit_authenticator import Authenticate
-import dotenv
-from google.oauth2 import service_account
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
 
+# Load the model and preprocessor
+@st.cache_resource
+def load_model_and_preprocessor():
+    model = joblib.load('sleep_disorder_model.pkl')
+    preprocessor = model.named_steps['preprocessor']
+    return model, preprocessor
 
-# Load environment variables from .env file
-load_dotenv()
+# Predict sleep disorder
+def predict_sleep_disorder(input_data, model, preprocessor):
+    # Convert input into a DataFrame
+    input_df = pd.DataFrame([input_data])
+    
+    # Transform features
+    transformed_features = preprocessor.transform(input_df)
+    
+    # Predict
+    prediction = model.named_steps['classifier'].predict(transformed_features)
+    prediction_proba = model.named_steps['classifier'].predict_proba(transformed_features)
+    return prediction[0], prediction_proba[0]
 
-# Fetch credentials from environment variables
-client_id = os.getenv("GOOGLE_CLIENT_ID")
-client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-project_id = os.getenv("GOOGLE_PROJECT_ID")
-private_key_id = os.getenv("GOOGLE_PRIVATE_KEY_ID")
+# Streamlit App
+def main():
+    st.title("Sleep Disorder Prediction")
+    st.markdown("Predict sleep disorders using lifestyle and health parameters.")
 
-private_key = os.getenv("GOOGLE_PRIVATE_KEY")
-if private_key is None:
-    print("Error: GOOGLE_PRIVATE_KEY not found.")
-else:
-    private_key = private_key.replace("\\n", "\n")
-client_email = os.getenv("GOOGLE_CLIENT_EMAIL")
-client_x509_cert_url = os.getenv("GOOGLE_CLIENT_X509_CERT_URL")
-auth_uri = os.getenv("GOOGLE_AUTH_URI")
-token_uri = os.getenv("GOOGLE_TOKEN_URI")
-auth_provider_x509_cert_url = os.getenv("GOOGLE_AUTH_PROVIDER_X509_CERT_URL")
+    # Input fields for user data
+    st.sidebar.header("Enter Input Details")
+    gender = st.sidebar.selectbox("Gender", options=["Male", "Female"])
+    age = st.sidebar.number_input("Age", min_value=10, max_value=100, step=1, value=30)
+    occupation = st.sidebar.selectbox(
+        "Occupation",
+        options=["Software Engineer", "Doctor", "Sales Representative", "Other"]
+    )
+    sleep_duration = st.sidebar.number_input("Sleep Duration (hours)", min_value=0.0, max_value=24.0, step=0.1, value=6.0)
+    quality_of_sleep = st.sidebar.slider("Quality of Sleep (1-10)", min_value=1, max_value=10, value=6)
+    physical_activity = st.sidebar.slider("Physical Activity Level (1-100)", min_value=0, max_value=100, value=50)
+    stress_level = st.sidebar.slider("Stress Level (1-10)", min_value=1, max_value=10, value=5)
+    bmi_category = st.sidebar.selectbox("BMI Category", options=["Underweight", "Normal", "Overweight", "Obese"])
+    blood_pressure = st.sidebar.selectbox("Blood Pressure", options=["Normal", "Elevated", "Hypertension Stage 1", "Hypertension Stage 2"])
+    heart_rate = st.sidebar.number_input("Heart Rate (bpm)", min_value=30, max_value=200, step=1, value=72)
+    daily_steps = st.sidebar.number_input("Daily Steps", min_value=0, max_value=50000, step=100, value=5000)
 
-# Ensure the required environment variables are present
-if not all([client_id, client_secret, project_id, private_key, client_email]):
-    st.error("Error: Missing some environment variables for Google API credentials.")
-else:
-    # Construct the credentials using the environment variables
-    credentials_info = {
-        "type": "service_account",
-        "project_id": project_id,
-        "private_key_id": private_key_id,
-        "private_key": private_key,
-        "client_email": client_email,
-        "client_id": client_id,
-        "auth_uri": auth_uri,
-        "token_uri": token_uri,
-        "auth_provider_x509_cert_url": auth_provider_x509_cert_url,
-        "client_x509_cert_url": client_x509_cert_url,
+    # Prepare input data
+    input_data = {
+        "Gender": gender,
+        "Age": age,
+        "Occupation": occupation,
+        "Sleep Duration": sleep_duration,
+        "Quality of Sleep": quality_of_sleep,
+        "Physical Activity Level": physical_activity,
+        "Stress Level": stress_level,
+        "BMI Category": bmi_category,
+        "Blood Pressure": blood_pressure,
+        "Heart Rate": heart_rate,
+        "Daily Steps": daily_steps
     }
 
-    
-    credentials = service_account.Credentials.from_service_account_info(
-        {
-            "type": "service_account",
-            "private_key": private_key,
-            "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
-            "token_uri": os.getenv("GOOGLE_TOKEN_URI"),
-        }
-    )
-    # Initialize Google Fit API client
-    try:
-        service = build('fitness', 'v1', credentials=credentials)
-        st.success("Successfully authenticated with Google Fit API!")
-    except Exception as e:
-        st.error(f"Error while authenticating: {e}")
+    # Predict button
+    if st.sidebar.button("Predict"):
+        model, preprocessor = load_model_and_preprocessor()
+        prediction, prediction_proba = predict_sleep_disorder(input_data, model, preprocessor)
 
+        st.header("Prediction Results")
+        st.write(f"Predicted Sleep Disorder: **{prediction}**")
+        st.write("Prediction Probabilities:")
+        st.write(pd.DataFrame(prediction_proba, index=model.named_steps['classifier'].classes_, columns=["Probability"]).T)
 
-# Google Fit Authentication and Data Retrieval Functions
+        st.success("Prediction completed!")
 
-SCOPES = [
-    'https://www.googleapis.com/auth/fitness.activity.read',
-    'https://www.googleapis.com/auth/fitness.sleep.read',
-    'https://www.googleapis.com/auth/fitness.heart_rate.read',
-]
-
-def authenticate_google_fit():
-    """Authenticate and return the Google Fit API service object."""
-    creds = None
-    
-    # Load saved credentials if available
-    if os.path.exists('token.pickle'):
-        with open('token.pickle', 'rb') as token:
-            creds = pickle.load(token)
-
-    # Refresh or initiate new authentication if needed
-    if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-        else:
-            # Load client credentials from environment variables
-            client_id = os.getenv("GOOGLE_CLIENT_ID")
-            client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-            redirect_uri = "http://localhost:8502"
-
-            flow = InstalledAppFlow.from_client_secrets_file(
-                '.env',  # File containing client credentials
-                SCOPES
-            )
-            creds = flow.run_local_server(port=0)
-
-        # Save the credentials for future use
-        with open('token.pickle', 'wb') as token:
-            pickle.dump(creds, token)
-
-    service = build('fitness', 'v1', credentials=creds)
-    return service
-
-
-def get_heart_rate_data(service):
-    """Retrieve heart rate data from Google Fit."""
-    # Calculate the dataset time range
-    end_time = int(time.time() * 1000)  # Current time in milliseconds
-    start_time = int((datetime.now() - timedelta(days=30)).timestamp() * 1000)  # Last 30 days
-
-    dataset_id = f"{start_time}-{end_time}"
-    
-    try:
-        dataset = service.users().dataSources().datasets().get(
-            userId='me',
-            dataSourceId='derived:com.google.heart_rate.bpm:com.google.android.gms:merge_heart_rate_bpm',
-            datasetId=dataset_id
-        ).execute()
-        
-        heart_rate_data = []
-        if 'point' in dataset:
-            for point in dataset['point']:
-                for value in point['value']:
-                    heart_rate_data.append({
-                        'timestamp': point['endTimeNanos'],
-                        'heart_rate': value['fpVal']  # Heart rate in bpm
-                    })
-        else:
-            print("No data points found in the response.")
-        
-        return heart_rate_data
-    except Exception as e:
-        print(f"Error retrieving data: {e}")
-        return []
-
-
-# Function to load Google Fit data
-@st.cache_data
-def load_google_fit_data():
-    """Load heart rate data from Google Fit."""
-    service = authenticate_google_fit()  # Authenticate and get service
-    heart_rate_data = get_heart_rate_data(service)  # Get heart rate data
-    return heart_rate_data
-
-
-# Function to load the trained model
-def load_model():
-    """Load the trained heart disease prediction model."""
-    with open('heart_disease_model.pkl', 'rb') as f:
-        model = pickle.load(f)
-    return model
-
-
-# Train the model function
-def train_model(df):
-    """Train a model using the provided dataframe."""
-    # Assuming `df` is your heart disease data with 'target' column as labels
-    X = df.drop('num', axis=1)  # Features (drop target column)
-    y = df['num']  # Labels (target column)
-
-    model = RandomForestClassifier()
-    model.fit(X, y)
-
-    # Save the model to a file
-    with open('heart_disease_model.pkl', 'wb') as f:
-        pickle.dump(model, f)
-    print("Model trained and saved.")
-
-
-# Load the heart disease dataset
-@st.cache_data
-def load_and_preprocess_data():
-    """Load and preprocess the heart disease dataset."""
-    # Load the heart disease dataset
-    df = pd.read_csv('heart_disease_uci.csv')  # Ensure you have this CSV in the correct path
-
-    # Display columns for debugging
-    st.write("Columns in the dataset:", df.columns)
-
-    # Preprocessing steps
-    df['fbs'] = df['fbs'].astype('category')
-    df['exang'] = df['exang'].astype('category')
-    df['slope'] = df['slope'].astype('category')
-    df['ca'] = df['ca'].astype('category')
-    df['thal'] = df['thal'].astype('category')
-
-    # Fill missing values
-    df['trestbps'] = df['trestbps'].fillna(df['trestbps'].mean())
-    df['thalch'] = df['thalch'].fillna(df['thalch'].mean())
-    df['chol'] = df['chol'].fillna(df['chol'].mean())
-    df['fbs'] = df['fbs'].fillna(df['fbs'].mode()[0])
-    df['exang'] = df['exang'].fillna(df['exang'].mode()[0])
-    df['oldpeak'] = df['oldpeak'].fillna(df['oldpeak'].mean())
-    df['slope'] = df['slope'].fillna(df['slope'].mode()[0])
-    df['ca'] = df['ca'].fillna(df['ca'].mode()[0])
-    df['thal'] = df['thal'].fillna(df['thal'].mode()[0])
-
-    # Standardize numeric columns
-    numeric_features = ['age', 'trestbps', 'chol', 'thalch', 'oldpeak']
-    scaler = StandardScaler()
-    df[numeric_features] = scaler.fit_transform(df[numeric_features])
-
-    st.write("Preprocessing completed successfully!")
-
-    return df
-
-
-# Train the model if it has not been trained yet
-if not os.path.exists('heart_disease_model.pkl'):
-    df = load_and_preprocess_data()
-    train_model(df)
-
-# Load model into session state
-if 'model' not in st.session_state:
-    st.session_state.model = load_model()
-
-model = st.session_state.model
-
-# Title and description
-st.title("Heart Disease and Heart Rate Analysis App")
-st.write("This app predicts heart disease likelihood and provides heart rate analysis.")
-
-# Section for Heart Disease Prediction
-st.header("Heart Disease Prediction")
-st.write("Enter the following details to predict the likelihood of heart disease:")
-
-# Input fields for user features
-age = st.number_input("Age", min_value=1, max_value=120, step=1, key="age_input")
-trestbps = st.number_input("Resting Blood Pressure (mm Hg)", min_value=80, max_value=200, step=1, key="bp_input")
-chol = st.number_input("Cholesterol Level (mg/dl)", min_value=100, max_value=400, step=1, key="chol_input")
-thalch = st.number_input("Maximum Heart Rate Achieved", min_value=60, max_value=220, step=1, key="thalch_input")
-oldpeak = st.number_input("ST Depression Induced by Exercise", min_value=0.0, max_value=10.0, step=0.1, key="oldpeak_input")
-
-
-# Predict button for heart disease
-if st.button('Predict Heart Disease'):
-    user_data = pd.DataFrame([[age, trestbps, chol, thalch, oldpeak]], columns=['age', 'trestbps', 'chol', 'thalch', 'oldpeak'])
-    prediction = model.predict(user_data)
-    st.write(f'Prediction: {"Heart disease likely" if prediction[0] == 1 else "No heart disease"}')
-
-# Section for Google Fit Heart Rate Data
-st.header("Heart Rate Data from Google Fit")
-try:
-    heart_rate_data = load_google_fit_data()
-    if heart_rate_data:
-        st.subheader("Recent Heart Rate Data")
-        st.write(heart_rate_data)  # Display raw heart rate data
-        
-        # Optionally, you can plot the heart rate data over time
-        if heart_rate_data:
-            df = pd.DataFrame(heart_rate_data)
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ns')  # Convert to readable datetime
-            
-            st.subheader("Heart Rate Over Time")
-            plt.figure(figsize=(10, 5))
-            plt.plot(df['timestamp'], df['heart_rate'], color='blue')
-            plt.xlabel("Date")
-            plt.ylabel("Heart Rate (bpm)")
-            plt.title("Heart Rate Data from Google Fit")
-            st.pyplot(plt)
-            plt.clf()  # Clear the plot for next display
-    else:
-        st.write("No heart rate data found.")
-except Exception as e:
-    st.error(f"Error fetching heart rate data: {str(e)}")
+# Run the app
+if __name__ == "__main__":
+    main()

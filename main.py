@@ -9,23 +9,24 @@ import joblib
 
 # Load and preprocess the dataset
 def load_data():
-    # Replace 'heart_disease_uci.csv' with the correct path to your dataset
-    df = pd.read_csv('./data/uci_heart_disease.csv')
+    # Load the sleep dataset
+    df = pd.read_csv('Sleep_health_and_lifestyle_dataset.csv')
 
     # Check for missing values and fill as needed
-    df['fbs'] = df['fbs'].astype('category')
-    df['exang'] = df['exang'].astype('category')
-    df['slope'] = df['slope'].astype('category')
-    df['ca'] = df['ca'].astype('category')
-    df['thal'] = df['thal'].astype('category')
+    df['Gender'] = df['Gender'].astype('category')
+    df['Occupation'] = df['Occupation'].astype('category')
+    df['BMI Category'] = df['BMI Category'].astype('category')
+    df['Blood Pressure'] = df['Blood Pressure'].astype('category')
+    df['Sleep Disorder'] = df['Sleep Disorder'].astype('category')
 
     # Fill missing values for numeric columns with mean
-    numeric_columns = ['age', 'trestbps', 'chol', 'thalch', 'oldpeak']
+    numeric_columns = ['Age', 'Sleep Duration', 'Quality of Sleep', 
+                       'Physical Activity Level', 'Stress Level', 'Heart Rate', 'Daily Steps']
     for col in numeric_columns:
         df[col] = df[col].fillna(df[col].mean())
 
     # Fill missing values for categorical columns with mode
-    categorical_columns = ['fbs', 'exang', 'slope', 'ca', 'thal']
+    categorical_columns = ['Gender', 'Occupation', 'BMI Category', 'Blood Pressure', 'Sleep Disorder']
     for col in categorical_columns:
         df[col] = df[col].fillna(df[col].mode()[0])
 
@@ -34,12 +35,12 @@ def load_data():
 # Preprocess data and split into training/testing sets
 def preprocess_data(df):
     # Separate features and target
-    features = df.drop(columns=['num'])  # Assuming 'num' is the target column
-    target = df['num']
+    features = df.drop(columns=['Person ID', 'Sleep Disorder'])  # Exclude ID and target column
+    target = df['Sleep Disorder']
 
     # Identify numeric and categorical columns
     numeric_features = features.select_dtypes(include=['float64', 'int64']).columns
-    categorical_features = features.select_dtypes(include=['category']).columns
+    categorical_features = features.select_dtypes(include=['category', 'object']).columns
 
     # Preprocessing pipelines
     numeric_transformer = StandardScaler()
@@ -91,12 +92,12 @@ def train_model():
     print("\nConfusion Matrix:\n", confusion_matrix(y_test, y_pred))
 
     # Save the model
-    joblib.dump(best_model, 'heart_disease_model.pkl')
+    joblib.dump(best_model, 'sleep_disorder_model.pkl')
     print("Best model trained and saved.")
 
 # Load the trained model from a file
 def load_model():
-    model = joblib.load('heart_disease_model.pkl')
+    model = joblib.load('sleep_disorder_model.pkl')
     return model
 
 # Train the model (uncomment this line to run training)
